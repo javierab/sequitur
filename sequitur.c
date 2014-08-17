@@ -44,11 +44,11 @@ void expand(symbols *s){
 
 //sustituir un digrama por un no terminal.
 void substitute(symbols *s, rules *r){
+
     symbols *q = s->p;
-    
     delsymb(next(q));
     delsymb(next(q));
-    append(q, newsymbol((ulong) r, 1));
+    append(q, newsymbol((ulong) r, true));
     if(!check(q))
         check(q->n);
 } 
@@ -59,26 +59,24 @@ void match(symbols *ss, symbols *m){
 
   // reusar
 
-  if (is_guard(m->p) && is_guard(m->n->n)){
-    printf("reuso\n");
-    r = rule(m->p);
+  if (is_guard(prev(m)) && is_guard(next(next(m)))){
+    r = rule(prev(m));
     substitute(ss, r); 
   }
   else {
-      printf("nueva regla\n");
     // nueva regla
     r = newrule();    
     if (nt(ss)){
-      append(last(r), newsymbol(ss->s, true));
+      append(last(r), newsymbol(rule(ss), true));
       }
     else{
-      append(last(r), newsymbol(ss->s, false));
+      append(last(r), newsymbol(value(ss), false));
     }
     if(nt(next(ss))){
-      append(last(r), newsymbol(ss->n->s, true));
+      append(last(r), newsymbol(rule(next(ss)), true));
     }
     else{
-      append(last(r), newsymbol(ss->n->s, false));
+      append(last(r), newsymbol(value(ss->n), false));
     }
     substitute(m, r);
     substitute(ss, r);
@@ -105,13 +103,11 @@ int check(symbols *S) {
 }
 
 
-
-
-
 /*Operaciones de la tabla de Hash*/
 
 //op. tabla de hash para buscar e insertar digramas.
 symbols **find_digram(symbols *S){
+  if(S->s == NULL) return -1;
   ulong one = S->s;
   ulong two = next(S)->s;
 
@@ -120,14 +116,14 @@ symbols **find_digram(symbols *S){
   int i = HASH(one, two);
   while (true) {
     symbols *m = table[i];
-    if (m == -1) {
+    if (m == NULL) {
       if (insert == -1) insert = i;
       return &table[insert];
     } 
     else if ((int)m == 1){
         insert = i;
     }
-    else if (m->s == one && next(m)->s == two){
+    else if (raw(m) == one && raw(next(m)) == two){
       return &table[i];
     }
     i = (i + jump) % PRIME;
@@ -140,7 +136,7 @@ void delete_digram(symbols *s) {
   if (is_guard(s) || is_guard(s->n)) 
     return;
   symbols **m = find_digram(s);
-  if (*m == s) *m = (symbols *)-1;
+  if (*m == s) *m = (symbols *) 1;
 }
 
 // imprimir las reglas
@@ -149,8 +145,10 @@ rules **R;
 int Ri;
 
 void p(rules *r) {
-  symbols *p;
-  for (p = first(r); !is_guard(p); p = next(p))
+  symbols *p = first(r);
+  printf("CHARuu: %d\n", is_guard(p));
+  while(p =! is_guard(p)){
+    printf("CHAR: %c\n", value(p));
     if (nt(p)) {
       int i;
       if (R[rule(p)->number] == rule(p))
@@ -164,18 +162,21 @@ void p(rules *r) {
       fprintf(stdout, "%d ", i);
     }
     else {
-      if ((char)p->s == ' ') fprintf(stdout, "_");
-      else if ((char)p->s == '\n') fprintf(stdout, "\\n");
-      else if ((char)p->s == '\t') fprintf(stdout, "\\t");
-      else if ((char)p->s == '\\' ||
-               (char)p->s == '(' ||
-               (char)p->s == ')' ||
-               (char)p->s == '_' ||
-               isdigit((char)p->s))
-        fprintf(stdout, "\\%c", (char)p->s);
-      else fprintf(stdout, "%c", (char)p->s);
+      //caracteres especialees
+      if ((char)value(p) == ' ') fprintf(stdout, "_");
+      else if ((char)value(p) == '\n') fprintf(stdout, "\\n");
+      else if ((char)value(p) == '\t') fprintf(stdout, "\\t");
+      else if ((char)value(p) == '\\' ||
+               (char)value(p) == '(' ||
+               (char)value(p) == ')' ||
+               (char)value(p) == '_' ||
+               isdigit((char)value(p)))
+        fprintf(stdout, "\\%c", (char)value(p));
+      else fprintf(stdout, "%c", (char)value(p));
       fprintf(stdout, " ");
     }
+    p = p->n;
+  }
   fprintf(stdout,"\n");
 }
 
@@ -184,7 +185,7 @@ void print()
   int i;
   R = (rules **) malloc(sizeof(rules *) * num_rules);
   memset(R, 0, sizeof(rules *) * num_rules);
-  R[0] = (rules *)&S;
+  R[0] = &S;
   Ri = 1;
 
   for (i = 0; i < Ri; i ++) {
@@ -214,17 +215,17 @@ void printhash(){
 
 
 int main(){
-    clearhash();
+    //clearhash();
     S = newrule();
-    char get = getchar();
-    fprintf(stderr,"char: %c\n", get);
+    ulong get = getchar();
     append(last(S), newsymbol(get, false));
-  while (get != EOF) {
+  while (true) {
     get = getchar();
+    if(get == EOF) break;
     append(last(S), newsymbol(get, false));
     check(prev(last(S)));
   }
-  printhash();
+  //printhash();
   printf("reglas: %lu\n", num_rules);
   print();
     
