@@ -1,96 +1,127 @@
-#include <unistd.h>
+#include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <sys/timeb.h>
-#include <sys/times.h>
-#include <limits.h>
+#include <stdbool.h>
+#define PRIME 2265539
+//double hashing
+#define HASH(one, two) (((one) << 16 | (two)) % PRIME)
+#define HASH2(one) (17 - ((one) % 17))
 
 typedef unsigned long ulong;
 
-int globalid = 1000;
-
-typedef struct{
-	char *char1;
-	char *char2;
-}digram;
 
 typedef struct simb{
-	struct simb *next, *prev;	//simbolos next y prev dentro de la regla.
-	void * resp;			//si es no terminal, puntero a la regla donde va.
-	char c;				//simbolo
-}symbol;
-
+    struct simb *n, *p;         //simbolos next y prev
+    ulong s;                //valor del simbolo
+}symbols;
 
 typedef struct{
-	symbol *guard;			//nodo guard de la regla.
+	symbols *guard;			//nodo guard de la regla.
 	int count;				//usos de la regla.
-	ulong id;					//nombre de la regla (no es necesario)
-}rule;
+	int number;             //id de la regla.
+}rules;
 
-ulong getId(){
-    return ++globalid;
+void join(symbols *left, symbols *right);
+void substitute(symbols *s, rules *r);
+void match(symbols *ss, symbols *m); 
+
+symbols **find_digram(symbols *s);
+void delete_digram(symbols *s);
+
+//pequeñas funciones auxiliares y otros.
+rules *S;
+ulong num_rules = 0;
+symbols *table[PRIME];
+
+symbols *next(symbols *S){
+    return S->n;
+}
+symbols *prev(symbols *S){
+    return S->p;
+}
+//preguntas para las reglas
+symbols *first(rules *R) {
+    return R->guard->n;
+}
+symbols *last(rules *R){
+    return R->guard->p;
+}
+//convertir el ulong en la regla. magia.
+rules *rule(symbols *S){
+    return (rules *)(S->s);
+}
+void append(symbols *r, symbols *s){
+    join(s, r->n);
+    join(r, s);
 }
 
-void printRule(rule *r){
-    symbol *this = r->guard->next;
-    fprintf(stdout, "%lu:", r->id);
-    while(this != r->guard){
-        fprintf(stdout, "%c", this->c);
-        this = this->next;
+int nt(symbols *S){
+    return ((S->s % 2) == 0) && (S->s != 0);
+}
+int is_guard(symbols *S){
+    return nt(S) && prev(first(rule(S))) == S;
+}
+ulong value(symbols *S){
+    return S->s/2;
+}
+
+void reuse(rules *R){
+    R->count++;
+}
+void deuse(rules *R){
+    if(R->count > 1)
+        R->count--;
+}
+
+int freq(rules *R){
+    return R->count;
+}
+symbols *newsymbol(ulong s, bool isrule){
+    char sym = (char) s;
+    symbols *S = (symbols *)malloc(sizeof(symbols));
+    if(!isrule){
+        S->s = sym*2+1; //estrategia sugerida para que sea impar, y estén en otro espacio que los punteros a reglas.   
     }
-    fprintf(stdout, "\n");
+    else
+        S->s = sym;
+
+    S->p = S->n = 0;
+    fprintf(stderr,"nuevo simbolo con s = %c\n", (char)sym);
+    return S;
 }
 
-
-rule *newRule(char n){
-    fprintf(stderr, "char n: %c\n", n);
-    rule *r = (rule *)malloc(sizeof(rule*));
-    r->id = getId();
-    r->count = 1;
-    symbol *guard = (symbol *)malloc(sizeof(symbol*));
-    symbol *s = (symbol *)malloc(sizeof(symbol*));
-    char k = 'X';
-    guard->c = k;
-    s->c = n;
-    //los enlazo hacia adelante
-    guard->next = s;
-    s->next = guard;
-    //los enlazo hacia atrás
-    guard->prev = s;
-    s->prev = guard;
-    //seteo como guard
-    r->guard = guard;
-    printf("char: %c\n", r->guard->prev->c);
+rules *newrule(){
+    num_rules++;
+    rules *r = (rules *)malloc(sizeof(rules));
+    r->guard = newsymbol((ulong)r, true);
+    join(r->guard, r->guard);
+    r->count = 0;
+    r->number = 0;
     return r;
-    
 }
 
-void addSymbol(rule *r, char n){
-    symbol *aux = r->guard->prev;
-    char auxc = aux->c;
-    symbol *new = (symbol *)malloc(sizeof(symbol));
-    fprintf(stderr,"newsymbol: %c\n", n);
-    new->c = n;
-    aux->c = auxc;
-    printf("aux-c: %c, new-c: %c\n", aux->c, new->c);
-    //uno el nuevo al guard
-    r->guard->prev = new;
-    new->next = r->guard;
-    //uno el nuevo al aux
-    aux->next = new;
-    new->prev = aux;
+void delrule(rules *r){
+    free(r->guard);
+    free(r);
+    num_rules--;
 }
 
 
+bool isrule(symbols *s){
+    long S = (long) s;
+    if( ((S>>1)<<1) == S) //es par?
+        return true;
+    return false;
+}
 
-/*Funciones de las reglas: agregar un simbolo, crear una regla, usar una regla existente, crear una regla, borrar una regla, buscar una regla */
+void delsymb(symbols *S){
+    join(S->p, S->n);
+    if(!(is_guard(S))){
+        delete_digram(S);
+    }
+}
 
 
-rule *createRule(digram d);
-void reuse(rule *r, char *c);
-void deleteRule(rule *r);
-rule *getRule(ulong id);
-digram *join(symbol *left, symbol *right);
-char *unjoin(digram *d);
+
 
