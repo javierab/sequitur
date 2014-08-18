@@ -2,18 +2,20 @@
 
 //juntar 2 simbolos, borrando los digramas viejos de la tabla de hash.
 
-void join(symbols *left, symbols *right) {
+void join(Symbol *left, Symbol *right) {
+  fprintf(stderr,"join\n");
   if (left->n) {
-    delete_digram(left);
+    del(left);
+    //se borra para que no haya problema con pares que se superponen.
     if (right->p && right->n &&
-        right->s/2 == right->p->s/2 &&
-        right->s/2 == right->n->s/2){
+        value(right) == value(right->p) &&
+        value(right) == value(right->n)){
             *find_digram(right) = right;
     }
     
     if (left->p && left->n &&
-        left->s/2 == left->n->s/2 &&
-        left->s/2 == left->p->s/2){
+        value(left) == value(left->n) &&
+        value(left) == value(left->p)){
             *find_digram(left->p) = left->p;
     }
   }
@@ -23,57 +25,60 @@ void join(symbols *left, symbols *right) {
 
 
 //ultima referencia a una regla: hay que borrarla!
-void expand(symbols *s){
-  symbols *left = prev(s);
-  symbols *right = next(s);
-  symbols *f = first(rule(s));
-  symbols *l = last(rule(s));
+void expand(Symbol *s){
+  fprintf(stderr,"expando\n");
+  Symbol *left = prev(s);
+  Symbol *right = next(s);
+  Symbol *f = first(rule(s));
+  Symbol *l = last(rule(s));
 
   delrule(rule(s));
-  symbols **m = find_digram(s);
-  if (*m == s) *m = (symbols *) 1;
+  Symbol **m = find_digram(s);
+  if (*m == s) *m = (Symbol *) 1;
   s->s = 0; 
-  //adios :c
-  delsymb(s);
+  //delsymb(s);
   
   join(left, f);
   join(l, right);
 
+  //adios :c
   *find_digram(l) = l;
 }
 
 //sustituir un digrama por un no terminal.
-void substitute(symbols *s, rules *r){
-
-    symbols *q = s->p;
+void substitute(Symbol *s, Rule *r){
+    fprintf(stderr,"substituyo\n");
+    Symbol *q = s->p;
     delsymb(next(q));
     delsymb(next(q));
     append(q, newsymbol((ulong) r, true));
     if(!check(q))
         check(q->n);
-} 
+}
 
 //digramas hacen match, reusar o crear regla.
-void match(symbols *ss, symbols *m){
-  rules *r;
+void match(Symbol *ss, Symbol *m){
+  Rule *r;
 
   // reusar
 
-  if (is_guard(prev(m)) && is_guard(next(next(m)))){
+  if (isGuard(prev(m)) && isGuard(next(next(m)))){
+    fprintf(stderr, "reuso\n");
     r = rule(prev(m));
     substitute(ss, r); 
   }
   else {
+    fprintf(stderr, "nueva regla\n");
     // nueva regla
-    r = newrule();    
+    r = newrule();  
     if (nt(ss)){
-      append(last(r), newsymbol(rule(ss), true));
+      append(last(r), newsymbol((ulong)rule(ss), true));
       }
     else{
       append(last(r), newsymbol(value(ss), false));
     }
     if(nt(next(ss))){
-      append(last(r), newsymbol(rule(next(ss)), true));
+      append(last(r), newsymbol((ulong)rule(next(ss)), true));
     }
     else{
       append(last(r), newsymbol(value(ss->n), false));
@@ -83,15 +88,16 @@ void match(symbols *ss, symbols *m){
 
     *find_digram(first(r)) = first(r);
   }
-  // ver si alguna regla se usa menos de 2 veces, expandir.
+  // ver si alguna regla se usa menos de 2 veces, expandir
+  fprintf(stderr, "regla se usa %d veces\n", r->count);
   if (nt(first(r)) && freq(rule(first(r))) == 1) 
     expand(first(r));
 
 }
   
-int check(symbols *S) {
-    if (is_guard(S) || is_guard(S->n)) return 0;
-    symbols **x = find_digram(S);
+int check(Symbol *S) {
+    if (isGuard(S) || isGuard(S->n)) return 0;
+    Symbol **x = find_digram(S);
     if ((int)*x <= 1) {
       *x = S;
       return 0;
@@ -106,7 +112,7 @@ int check(symbols *S) {
 /*Operaciones de la tabla de Hash*/
 
 //op. tabla de hash para buscar e insertar digramas.
-symbols **find_digram(symbols *S){
+Symbol **find_digram(Symbol *S){
   if(S->s == NULL) return -1;
   ulong one = S->s;
   ulong two = next(S)->s;
@@ -115,8 +121,8 @@ symbols **find_digram(symbols *S){
   int insert = -1;
   int i = HASH(one, two);
   while (true) {
-    symbols *m = table[i];
-    if (m == NULL) {
+    Symbol *m = table[i];
+    if (!m) {
       if (insert == -1) insert = i;
       return &table[insert];
     } 
@@ -132,87 +138,78 @@ symbols **find_digram(symbols *S){
 
 //borrar de la tabla de hash
 
-void delete_digram(symbols *s) {
-  if (is_guard(s) || is_guard(s->n)) 
+void del(Symbol *s) {
+      fprintf(stderr,"donde\n");
+  if (s->n == NULL) return;
+  fprintf(stderr,"delete: %d %d\n", isGuard(s), isGuard(next(s)));
+  if (isGuard(s) || isGuard(s->n)){ 
+      fprintf(stderr,"donde\n");
     return;
-  symbols **m = find_digram(s);
-  if (*m == s) *m = (symbols *) 1;
+  }
+  fprintf(stderr,"se\n");
+  Symbol **m = find_digram(s);
+    fprintf(stderr,"cae\n");
+  if (*m == s) *m = (Symbol *) 1;
+    fprintf(stderr,"esto\n");
 }
 
 // imprimir las reglas
 
-rules **R;
+void printfirst(Rule *S){
+
+Symbol *n = first(S);
+    int i;
+    for (i = 0; i <20; i++){
+        n = n->n;
+    }
+}
+
+Rule **R;
 int Ri;
 
-void p(rules *r) {
-  symbols *p = first(r);
-  printf("CHARuu: %d\n", is_guard(p));
-  while(p =! is_guard(p)){
-    printf("CHAR: %c\n", value(p));
+void p(Rule *r) {
+  Symbol *p;
+  for (p = first(r); !isGuard(p); p = next(p))
     if (nt(p)) {
       int i;
+
       if (R[rule(p)->number] == rule(p))
         i = rule(p)->number;
       else {
         i = Ri;
-        rule(p)->number =  Ri;
-        R[Ri++] = rule(p);
+        rule(p)->number = Ri;
+        R[Ri ++] = rule(p);
       }
-
-      fprintf(stdout, "%d ", i);
+      printf("%d ", i);
     }
     else {
-      //caracteres especialees
-      if ((char)value(p) == ' ') fprintf(stdout, "_");
-      else if ((char)value(p) == '\n') fprintf(stdout, "\\n");
-      else if ((char)value(p) == '\t') fprintf(stdout, "\\t");
-      else if ((char)value(p) == '\\' ||
-               (char)value(p) == '(' ||
-               (char)value(p) == ')' ||
-               (char)value(p) == '_' ||
-               isdigit((char)value(p)))
-        fprintf(stdout, "\\%c", (char)value(p));
-      else fprintf(stdout, "%c", (char)value(p));
-      fprintf(stdout, " ");
+      if (value(p) == ' ') printf("%c",'_');
+      else if (value(p) == '\n') printf("\\n");
+      else if (value(p) == '\t') printf("\\t");
+      else if (value(p) == '\\' ||
+               value(p) == '(' ||
+               value(p) == ')' ||
+               value(p) == '_' ||
+               isdigit(value(p)))
+        printf("\\%c", (char)value(p));
+      else printf("%c", (char)value(p));
+      printf(" ");
     }
-    p = p->n;
-  }
-  fprintf(stdout,"\n");
+  printf("\n");
 }
 
-void print()
-{
-  int i;
-  R = (rules **) malloc(sizeof(rules *) * num_rules);
-  memset(R, 0, sizeof(rules *) * num_rules);
-  R[0] = &S;
+void print(Rule *S){
+  R = (Rule **) malloc(sizeof(Rule *) * num_Rule);
+  memset(R, 0, sizeof(Rule *) * num_Rule);
+  R[0] = S;
   Ri = 1;
-
+  int i;
   for (i = 0; i < Ri; i ++) {
-    fprintf(stdout, "%d -> ", i);
+    printf("%d -> ", i);
     p(R[i]);
   }
   free(R);
 }
-
-
-//el compresor mismo.
-void clearhash(){
-    ulong i;
-    for(i = 0; i < PRIME; i++){
-        table[i] = (symbols *)malloc(sizeof(symbols));
-        table[i] = (symbols *)-1;
-    }
-}
-
-void printhash(){
-    ulong i;
-    for(i = 0; i < PRIME; i++){
-        if (table[i] != (symbols *)-1)
-            printf("%lu\n", i);
-    }
-}
-
 
 int main(){
     //clearhash();
@@ -226,9 +223,6 @@ int main(){
     check(prev(last(S)));
   }
   //printhash();
-  printf("reglas: %lu\n", num_rules);
-  print();
-    
-    
-    
+  printf("reglas: %lu\n", num_Rule);
+  print(S); 
 }

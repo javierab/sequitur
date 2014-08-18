@@ -10,85 +10,85 @@
 
 typedef unsigned long ulong;
 
-
 typedef struct simb{
     struct simb *n, *p;         //simbolos next y prev
     ulong s;                //valor del simbolo
-}symbols;
+}Symbol;
 
 typedef struct{
-	symbols *guard;			//nodo guard de la regla.
+	Symbol *guard;			//nodo guard de la regla.
 	int count;				//usos de la regla.
 	int number;             //id de la regla.
-}rules;
+}Rule;
 
-void join(symbols *left, symbols *right);
-void substitute(symbols *s, rules *r);
-void match(symbols *ss, symbols *m); 
+void join(Symbol *left, Symbol *right);
+void substitute(Symbol *s, Rule *r);
+void match(Symbol *ss, Symbol *m); 
 
-extern symbols **find_digram(symbols *s);
-void delete_digram(symbols *s);
+extern Symbol **find_digram(Symbol *s);
+void del(Symbol *s);
 
 //pequeñas funciones auxiliares y otros.
-rules *S;
-ulong num_rules = 0;
-symbols *table[PRIME];
+Rule *S;
+ulong num_Rule = 0;
+Symbol *table[PRIME];
 
-symbols *next(symbols *S){
+Symbol *next(Symbol *S){
     return S->n;
 }
-symbols *prev(symbols *S){
+Symbol *prev(Symbol *S){
     return S->p;
 }
 //preguntas para las reglas
-symbols *first(rules *R) {
+Symbol *first(Rule *R) {
     return R->guard->n;
 }
-symbols *last(rules *R){
+Symbol *last(Rule *R){
     return R->guard->p;
 }
 //convertir el ulong en la regla. magia.
-rules *rule(symbols *S){
-    return (rules *)(S->s);
+Rule *rule(Symbol *S){
+    return (Rule *)(S->s);
 }
-void append(symbols *r, symbols *s){
+void append(Symbol *r, Symbol *s){
     join(s, r->n);
     join(r, s);
 }
-inline ulong value(symbols *S){
+inline ulong value(Symbol *S){
     return S->s/2;   
 }
-inline ulong raw(symbols *S){
+inline ulong raw(Symbol *S){
     return S->s;   
 }
 
-int nt(symbols *S){
+int nt(Symbol *S){
     return ((S->s % 2) == 0) && (S->s != 0);
 }
-int is_guard(symbols *S){
+int isGuard(Symbol *S){
     if (nt(S) && prev(first(rule(S))) == S)
         return 1;
     else return 0;
 }
 
-void reuse(rules *R){
+void reuse(Rule *R){
     R->count++;
 }
-void deuse(rules *R){
+void unuse(Rule *R){
     R->count--;
 }
 
-int freq(rules *R){
+int freq(Rule *R){
     return R->count;
 }
-symbols *newsymbol(ulong sym, bool isrule){
-    symbols *S = (symbols *)malloc(sizeof(symbols));
+Symbol *newsymbol(ulong sym, bool isrule){
+    Symbol *S = (Symbol *)malloc(sizeof(Symbol));
     if(!isrule){
         S->s = sym*2+1; //estrategia sugerida para que sea impar, y estén en otro espacio que los punteros a reglas.  
         fprintf(stderr,"nuevo simbolo con s = %c\n", (char)value(S)); 
     }
     else{
         S->s = sym;
+        reuse(rule(S));
         fprintf(stderr,"nueva regla con s = %lu\n", value(S)); 
     }
     S->p = S->n = 0;
@@ -96,9 +96,9 @@ symbols *newsymbol(ulong sym, bool isrule){
     return S;
 }
 
-rules *newrule(){
-    num_rules++;
-    rules *r = (rules *)malloc(sizeof(rules));
+Rule *newrule(){
+    num_Rule++;
+    Rule *r = (Rule *)malloc(sizeof(Rule));
     r->guard = newsymbol((ulong)r, true);
     join(r->guard, r->guard);
     r->count = 0;
@@ -106,27 +106,18 @@ rules *newrule(){
     return r;
 }
 
-void delrule(rules *r){
+void delrule(Rule *r){
     free(r->guard);
     free(r);
-    num_rules--;
+    num_Rule--;
 }
 
 
-bool isrule(symbols *s){
-    long S = (long) s;
-    if( ((S>>1)<<1) == S) //es par?
-        return true;
-    return false;
-}
-
-void delsymb(symbols *S){
-
+void delsymb(Symbol *S){
     join(S->p, S->n);
-
-    if(!(is_guard(S))){
-        delete_digram(S);
-        if (nt(S)) deuse(rule(S)); 
+    if(!(isGuard(S))){
+        del(S);
+        if (nt(S)) unuse(rule(S)); 
     }
 }
 
