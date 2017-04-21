@@ -1,7 +1,7 @@
 #include "sequitur.h"
 
 //juntar 2 simbolos, borrando los digramas viejos de la tabla de hash.
-
+//lala
 void join(Symbol *left, Symbol *right) {
   fprintf(stderr,"join\n");
   if (left->n) {
